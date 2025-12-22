@@ -61,6 +61,22 @@ export type OrderStatus =
   | 'completed'
   | 'cancelled';
 
+export interface Seller {
+  id: string;
+  name: string;
+  location: {
+    lat: number;
+    lng: number;
+    address?: string;
+  };
+  pricePerUnit: number; // INR per kWh
+  availableEnergy: number; // kWh
+  rating?: number; // 0-5
+  totalSales?: number; // kWh
+  greenEnergy: boolean;
+  distance?: number; // km from user
+}
+
 // Wallet Types
 export interface Wallet {
   userId: string;
