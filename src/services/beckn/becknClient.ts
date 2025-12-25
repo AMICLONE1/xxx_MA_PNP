@@ -94,12 +94,22 @@ class BecknClient {
       });
 
       if (!response.ok) {
+        // Check if response is HTML (error page)
+        const contentType = response.headers.get('content-type');
+        if (contentType && !contentType.includes('application/json')) {
+          throw new Error(`Beckn gateway returned non-JSON response (likely not configured)`);
+        }
         throw new Error(`Beckn search failed: ${response.statusText}`);
       }
 
-      return await response.json();
-    } catch (error) {
-      throw new Error(`Beckn search error: ${error}`);
+      const data = await response.json();
+      return data;
+    } catch (error: any) {
+      // Improve error message
+      if (error.message?.includes('JSON Parse error') || error.message?.includes('Unexpected character')) {
+        throw new Error('Beckn gateway not available or not configured');
+      }
+      throw new Error(`Beckn search error: ${error.message || error}`);
     }
   }
 

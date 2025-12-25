@@ -8,12 +8,14 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/types';
 import { formatCurrency } from '@/utils/helpers';
 import { paymentService } from '@/services/payments/paymentService';
+import { RazorpayCheckout } from '@/components/payments/RazorpayCheckout';
 
 type TopUpScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -27,6 +29,12 @@ export default function TopUpScreen({ navigation }: Props) {
   const [amount, setAmount] = useState('');
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showRazorpayCheckout, setShowRazorpayCheckout] = useState(false);
+  const [razorpayData, setRazorpayData] = useState<{
+    orderId: string;
+    amount: number;
+    keyId: string;
+  } | null>(null);
 
   const handleQuickAmount = (quickAmount: number) => {
     setSelectedAmount(quickAmount);
@@ -47,36 +55,35 @@ export default function TopUpScreen({ navigation }: Props) {
 
     setIsProcessing(true);
     try {
-      // Note: Payment SDK (Razorpay/PhonePe) integration pending
-      // For now, this will call the API which will return payment details
-      // When SDK is integrated, uncomment the UPI app opening logic
       const response = await paymentService.initiateTopUp({
         amount: topUpAmount,
         paymentMethod: 'upi',
       });
       
       if (response.success && response.data) {
-        // TODO: When Razorpay/PhonePe SDK is integrated:
-        // if (response.data.upiIntent) {
-        //   const opened = await paymentService.openUPIApp(response.data.upiIntent);
-        //   if (opened) {
-        //     // Monitor payment status
-        //     navigation.goBack();
-        //   }
-        // }
-        
-        // For now, show success message
-        Alert.alert(
-          'Payment Initiated ✅',
-          `Payment of ${formatCurrency(topUpAmount)} has been initiated.\n\nPayment ID: ${response.data.paymentId}\n\nPlease complete the payment in your UPI app.`,
-          [{ text: 'OK', onPress: () => navigation.goBack() }]
-        );
+        // Check if Razorpay is configured
+        if (response.data.razorpayKeyId) {
+          // Open Razorpay checkout
+          setRazorpayData({
+            orderId: response.data.orderId,
+            amount: topUpAmount,
+            keyId: response.data.razorpayKeyId,
+          });
+          setShowRazorpayCheckout(true);
+        } else {
+          // Fallback: Show message (for development)
+          Alert.alert(
+            'Payment Initiated ✅',
+            `Payment of ${formatCurrency(topUpAmount)} has been initiated.\n\nPayment ID: ${response.data.paymentId}\n\nPlease complete the payment.`,
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          );
+        }
       } else {
         // Fallback to mock in development
         if (__DEV__) {
           Alert.alert(
             'Payment Initiated (Mock)',
-            `Top-up of ${formatCurrency(topUpAmount)} has been initiated. Please complete the payment in the UPI app.`,
+            `Top-up of ${formatCurrency(topUpAmount)} has been initiated. Please complete the payment.`,
             [{ text: 'OK', onPress: () => navigation.goBack() }]
           );
         } else {
@@ -90,7 +97,47 @@ export default function TopUpScreen({ navigation }: Props) {
     }
   };
 
+  const handlePaymentSuccess = async (paymentId: string, orderId: string, signature: string) => {
+    try {
+      // Verify payment with backend
+      const verifyResponse = await paymentService.verifyPayment(paymentId);
+      
+      if (verifyResponse.success) {
+        setShowRazorpayCheckout(false);
+        Alert.alert(
+          'Payment Successful ✅',
+          `Your wallet has been topped up successfully!\n\nAmount: ${formatCurrency(razorpayData?.amount || 0)}\nPayment ID: ${paymentId}`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setRazorpayData(null);
+                navigation.goBack();
+              },
+            },
+          ]
+        );
+      } else {
+        throw new Error(verifyResponse.error || 'Payment verification failed');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to verify payment');
+    }
+  };
+
+  const handlePaymentError = (error: string) => {
+    setShowRazorpayCheckout(false);
+    Alert.alert('Payment Failed', error || 'Payment could not be completed. Please try again.');
+    setRazorpayData(null);
+  };
+
+  const handlePaymentClose = () => {
+    setShowRazorpayCheckout(false);
+    setRazorpayData(null);
+  };
+
   return (
+    <>
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView style={styles.scrollView}>
         <View style={styles.content}>
@@ -175,6 +222,26 @@ export default function TopUpScreen({ navigation }: Props) {
         </View>
       </ScrollView>
     </SafeAreaView>
+
+    {/* Razorpay Checkout Modal */}
+    <Modal
+      visible={showRazorpayCheckout}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={handlePaymentClose}
+    >
+      {razorpayData && (
+        <RazorpayCheckout
+          orderId={razorpayData.orderId}
+          amount={razorpayData.amount}
+          keyId={razorpayData.keyId}
+          onSuccess={handlePaymentSuccess}
+          onError={handlePaymentError}
+          onClose={handlePaymentClose}
+        />
+      )}
+    </Modal>
+    </>
   );
 }
 

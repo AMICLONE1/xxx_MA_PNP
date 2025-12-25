@@ -30,6 +30,19 @@ class SupabaseDatabaseService {
   }
 
   /**
+   * Delete a meter
+   */
+  async deleteMeter(meterId: string, userId: string): Promise<void> {
+    const { error } = await supabase
+      .from('meters')
+      .delete()
+      .eq('id', meterId)
+      .eq('user_id', userId); // Ensure user owns the meter
+
+    if (error) throw error;
+  }
+
+  /**
    * Create a new meter
    */
   async createMeter(meter: Omit<Meter, 'id' | 'createdAt' | 'updatedAt'>): Promise<Meter> {

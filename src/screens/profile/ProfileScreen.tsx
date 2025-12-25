@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/types';
-import { useAuthStore } from '@/store';
+import { useAuthStore, useMeterStore } from '@/store';
 
 type ProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Profile'>;
 
@@ -15,6 +15,7 @@ interface Props {
 
 export default function ProfileScreen({ navigation }: Props) {
   const { logout, user } = useAuthStore();
+  const { currentMeter, removeMeter } = useMeterStore();
 
   const handleLogout = async () => {
     try {
@@ -22,6 +23,36 @@ export default function ProfileScreen({ navigation }: Props) {
     } catch (error) {
       Alert.alert('Error', 'Failed to logout. Please try again.');
     }
+  };
+
+  const handleDeleteMeter = () => {
+    if (!currentMeter || !user?.id) {
+      Alert.alert('Error', 'No meter to delete');
+      return;
+    }
+
+    Alert.alert(
+      'Delete Meter',
+      `Are you sure you want to delete meter "${currentMeter.meterSerialId}"?\n\nThis will stop all data generation and cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeMeter(currentMeter.id, user.id);
+              Alert.alert('Success', 'Meter deleted successfully');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to delete meter. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const menuItems = [
@@ -84,6 +115,30 @@ export default function ProfileScreen({ navigation }: Props) {
                   </View>
                 )}
               </View>
+            </View>
+          )}
+
+          {/* Current Meter Info */}
+          {currentMeter && (
+            <View style={styles.meterCard}>
+              <View style={styles.meterHeader}>
+                <View style={styles.meterIconContainer}>
+                  <MaterialCommunityIcons name="meter-electric" size={24} color="#10b981" />
+                </View>
+                <View style={styles.meterInfo}>
+                  <Text style={styles.meterTitle}>Current Meter</Text>
+                  <Text style={styles.meterSerial}>{currentMeter.meterSerialId}</Text>
+                  <Text style={styles.meterDiscom}>{currentMeter.discomName}</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.deleteMeterButton}
+                onPress={handleDeleteMeter}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="delete-outline" size={20} color="#ef4444" />
+                <Text style={styles.deleteMeterText}>Delete Meter</Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -269,5 +324,68 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  meterCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  meterHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  meterIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#ecfdf5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  meterInfo: {
+    flex: 1,
+  },
+  meterTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  meterSerial: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  meterDiscom: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  deleteMeterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    gap: 8,
+  },
+  deleteMeterText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ef4444',
   },
 });

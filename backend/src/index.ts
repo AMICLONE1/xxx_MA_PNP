@@ -315,6 +315,11 @@ app.post('/wallet/top-up', verifyAuth, async (req, res) => {
       },
     });
 
+    // Generate Razorpay checkout URL
+    // Note: Razorpay doesn't provide direct checkout URL, so we'll use their hosted checkout
+    // For mobile, we'll use the order ID and key ID to open Razorpay checkout
+    const checkoutUrl = `https://checkout.razorpay.com/v1/checkout.js?key=${process.env.RAZORPAY_KEY_ID}`;
+
     res.json({
       success: true,
       data: {
@@ -322,7 +327,8 @@ app.post('/wallet/top-up', verifyAuth, async (req, res) => {
         orderId: razorpayOrder.id,
         amount: amount,
         status: 'pending',
-        upiIntent: `upi://pay?pa=merchant@upi&pn=PowerNetPro&am=${amount}&cu=INR`,
+        razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+        checkoutUrl: checkoutUrl,
       },
     });
   } catch (error: any) {
@@ -463,12 +469,16 @@ app.post('/payments/verify', verifyAuth, async (req, res) => {
     if (payment.status === 'captured') {
       // Update wallet balance
       // This would typically be done via webhook, but for simplicity:
+      const amount = typeof payment.amount === 'number' 
+        ? payment.amount / 100 
+        : parseInt(String(payment.amount || 0), 10) / 100;
+      
       res.json({
         success: true,
         data: {
           status: 'completed',
           paymentId: payment.id,
-          amount: payment.amount / 100, // Convert from paise
+          amount: amount, // Convert from paise
         },
       });
     } else {

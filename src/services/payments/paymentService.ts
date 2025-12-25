@@ -11,7 +11,9 @@ export interface TopUpResponse {
   orderId: string;
   amount: number;
   status: 'pending' | 'completed' | 'failed';
-  upiIntent?: string; // For UPI payments
+  razorpayKeyId?: string; // Razorpay public key ID
+  checkoutUrl?: string; // Razorpay checkout URL
+  upiIntent?: string; // For UPI payments (deprecated)
 }
 
 export interface WithdrawalRequest {
@@ -47,8 +49,18 @@ class PaymentService {
    * Verify payment status
    */
   async verifyPayment(paymentId: string): Promise<ApiResponse<{ status: string }>> {
-    // TODO: Implement payment verification
-    throw new Error('Payment verification not yet implemented');
+    try {
+      const response = await apiClient.post<ApiResponse<{ status: string }>>(
+        '/payments/verify',
+        { paymentId }
+      );
+      return response;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to verify payment',
+      };
+    }
   }
 
   /**

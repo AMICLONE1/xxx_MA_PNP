@@ -162,7 +162,10 @@ export default function MarketplaceScreen({ navigation }: Props) {
             );
           }
         } catch (becknError) {
-          console.warn('Beckn search failed, trying API fallback:', becknError);
+          // Beckn gateway is optional - silently fall back to API
+          if (__DEV__) {
+            console.log('Beckn gateway not available, using API fallback');
+          }
         }
       }
 

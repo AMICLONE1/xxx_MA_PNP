@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Meter, EnergyData } from '@/types';
 import { supabaseDatabaseService } from '@/services/supabase/databaseService';
-import { getBackgroundDataGenerator } from '@/services/mock/backgroundDataGenerator';
+import { getBackgroundDataGenerator, stopBackgroundDataGenerator } from '@/services/mock/backgroundDataGenerator';
 import { getMeterConfig } from '@/utils/meterConfig';
 
 interface MeterState {
@@ -15,6 +15,7 @@ interface MeterState {
   clearEnergyData: () => void;
   restoreMeters: (userId: string) => Promise<void>;
   loadEnergyData: (meterId: string, days?: number) => Promise<void>;
+  removeMeter: (meterId: string, userId: string) => Promise<void>;
 }
 
 export const useMeterStore = create<MeterState>((set, get) => ({
@@ -88,6 +89,47 @@ export const useMeterStore = create<MeterState>((set, get) => ({
       set({ energyData });
     } catch (error) {
       console.error('Error loading energy data:', error);
+    }
+  },
+
+  /**
+   * Remove/delete a meter
+   */
+  removeMeter: async (meterId: string, userId: string) => {
+    try {
+      // Stop background data generation for this meter
+      const currentMeter = get().currentMeter;
+      if (currentMeter && currentMeter.id === meterId) {
+        stopBackgroundDataGenerator();
+      }
+
+      // Delete from database
+      await supabaseDatabaseService.deleteMeter(meterId, userId);
+
+      // Update store
+      const updatedMeters = get().meters.filter((m) => m.id !== meterId);
+      
+      // If deleted meter was current, set new current or null
+      const newCurrentMeter = 
+        currentMeter?.id === meterId 
+          ? (updatedMeters.length > 0 ? updatedMeters[0] : null)
+          : currentMeter;
+
+      set({
+        meters: updatedMeters,
+        currentMeter: newCurrentMeter,
+        energyData: currentMeter?.id === meterId ? [] : get().energyData,
+      });
+
+      // If there's a new current meter, restart data generation
+      if (newCurrentMeter) {
+        const config = getMeterConfig();
+        const generator = getBackgroundDataGenerator(newCurrentMeter.id, config);
+        generator.start();
+      }
+    } catch (error) {
+      console.error('Error removing meter:', error);
+      throw error;
     }
   },
 }));
