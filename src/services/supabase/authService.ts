@@ -155,35 +155,101 @@ class SupabaseAuthService {
   /**
    * Get or create user profile in public.users table
    */
-  private async getOrCreateUserProfile(userId: string, email: string): Promise<User> {
-    // Check if user profile exists
-    const { data: existingUser, error: fetchError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
+  private async getOrCreateUserProfile(userId: string, email: string, name?: string): Promise<User> {
+    try {
+      if (__DEV__) {
+        console.log('👤 Fetching user profile for:', userId);
+      }
 
-    if (existingUser && !fetchError) {
-      return this.mapSupabaseUserToUser(existingUser);
+      // Check if user profile exists with timeout
+      const fetchPromise = supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      const fetchTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 8000)
+      );
+
+      let existingUser, fetchError;
+      try {
+        const result = await Promise.race([fetchPromise, fetchTimeoutPromise]) as any;
+        existingUser = result.data;
+        fetchError = result.error;
+      } catch (timeoutError) {
+        if (__DEV__) {
+          console.warn('⚠️ Profile fetch timed out, will create new profile');
+        }
+        fetchError = timeoutError;
+      }
+
+      if (existingUser && !fetchError) {
+        if (__DEV__) {
+          console.log('✅ Found existing user profile');
+        }
+        // If name is provided and user doesn't have a name, update it
+        if (name && !existingUser.name) {
+          if (__DEV__) {
+            console.log('📝 Updating user name...');
+          }
+          const updateResult = await supabase
+            .from('users')
+            .update({ name: name })
+            .eq('id', userId)
+            .select()
+            .single();
+          
+          if (updateResult.data) {
+            return this.mapSupabaseUserToUser(updateResult.data);
+          }
+        }
+        return this.mapSupabaseUserToUser(existingUser);
+      }
+
+      if (__DEV__) {
+        console.log('📝 Creating new user profile...');
+      }
+
+      // Create new user profile with timeout
+      const createPromise = supabase
+        .from('users')
+        .insert({
+          id: userId,
+          email: email,
+          name: name || null,
+          phone_number: null, // Set to null if not provided (column should be nullable)
+          kyc_status: 'pending',
+        })
+        .select()
+        .single();
+
+      const createTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Profile creation timeout')), 8000)
+      );
+
+      const createResult = await Promise.race([createPromise, createTimeoutPromise]) as any;
+      const newUser = createResult.data;
+      const createError = createResult.error;
+
+      if (createError || !newUser) {
+        if (__DEV__) {
+          console.error('❌ Failed to create user profile:', createError);
+        }
+        throw new Error(createError?.message || 'Failed to create user profile');
+      }
+
+      if (__DEV__) {
+        console.log('✅ User profile created successfully');
+      }
+
+      return this.mapSupabaseUserToUser(newUser);
+    } catch (error: any) {
+      if (__DEV__) {
+        console.error('❌ getOrCreateUserProfile error:', error);
+      }
+      throw error;
     }
-
-    // Create new user profile
-    const { data: newUser, error: createError } = await supabase
-      .from('users')
-      .insert({
-        id: userId,
-        email: email,
-        phone_number: null, // Set to null if not provided (column should be nullable)
-        kyc_status: 'pending',
-      })
-      .select()
-      .single();
-
-    if (createError || !newUser) {
-      throw new Error(createError?.message || 'Failed to create user profile');
-    }
-
-    return this.mapSupabaseUserToUser(newUser);
   }
 
   /**
@@ -195,6 +261,7 @@ class SupabaseAuthService {
       email: supabaseUser.email,
       phoneNumber: supabaseUser.phone_number || undefined,
       name: supabaseUser.name || undefined,
+      profilePictureUrl: supabaseUser.profile_picture_url || undefined,
       kycStatus: supabaseUser.kyc_status || 'pending',
       createdAt: new Date(supabaseUser.created_at),
       updatedAt: new Date(supabaseUser.updated_at),
@@ -302,7 +369,12 @@ class SupabaseAuthService {
    */
   async signUp(data: SignUpRequest): Promise<ApiResponse<AuthResponse>> {
     try {
-      const { data: authData, error } = await supabase.auth.signUp({
+      if (__DEV__) {
+        console.log('📝 Attempting sign up for:', data.email);
+      }
+
+      // Add timeout to prevent hanging
+      const signUpPromise = supabase.auth.signUp({
         email: data.email.toLowerCase().trim(),
         password: data.password,
         options: {
@@ -312,25 +384,95 @@ class SupabaseAuthService {
         },
       });
 
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Sign up request timeout. Please check your internet connection.')), 15000)
+      );
+
+      let result;
+      try {
+        result = await Promise.race([signUpPromise, timeoutPromise]) as any;
+      } catch (raceError: any) {
+        // Handle network errors from Promise.race
+        if (raceError.message?.includes('timeout') || raceError.message?.includes('Network request failed')) {
+          if (__DEV__) {
+            console.error('❌ Sign up network error:', raceError);
+          }
+          return {
+            success: false,
+            error: 'Network request failed. Please check your internet connection and try again. If using Android emulator, ensure network is configured correctly.',
+          };
+        }
+        throw raceError;
+      }
+
+      const { data: authData, error } = result;
+
       if (error) {
+        if (__DEV__) {
+          console.error('❌ Sign up error:', error);
+        }
+        
+        // Better error messages for common issues
+        let errorMessage = error.message || 'Failed to create account. Please try again.';
+        if (error.message?.includes('Network request failed') || error.message?.includes('fetch')) {
+          errorMessage = 'Network request failed. Please check your internet connection. If using Android emulator, try: Settings → Network → Reset network settings.';
+        } else if (error.message?.includes('email')) {
+          errorMessage = 'Email address is already registered or invalid.';
+        }
+        
         return {
           success: false,
-          error: error.message,
+          error: errorMessage,
         };
       }
 
       if (!authData.user || !authData.session) {
+        if (__DEV__) {
+          console.error('❌ No user or session returned from sign up');
+        }
         return {
           success: false,
           error: 'Sign up failed. Please try again.',
         };
       }
 
-      // Get or create user profile in public.users table
-      const userProfile = await this.getOrCreateUserProfile(
-        authData.user.id,
-        data.email.toLowerCase().trim()
-      );
+      if (__DEV__) {
+        console.log('✅ Supabase sign up successful, creating user profile...');
+      }
+
+      // Get or create user profile in public.users table with timeout
+      let userProfile;
+      try {
+        const profilePromise = this.getOrCreateUserProfile(
+          authData.user.id,
+          data.email.toLowerCase().trim(),
+          data.name || undefined
+        );
+
+        const profileTimeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Profile creation timeout')), 10000)
+        );
+
+        userProfile = await Promise.race([profilePromise, profileTimeoutPromise]) as User;
+      } catch (profileError: any) {
+        if (__DEV__) {
+          console.warn('⚠️ Profile creation failed, using basic user data:', profileError);
+        }
+        // Even if profile creation fails, we can still sign up with basic user data
+        userProfile = {
+          id: authData.user.id,
+          email: authData.user.email || data.email.toLowerCase().trim(),
+          name: data.name || undefined,
+          profilePictureUrl: undefined,
+          kycStatus: 'pending' as const,
+          createdAt: new Date(authData.user.created_at),
+          updatedAt: new Date(authData.user.updated_at || authData.user.created_at),
+        };
+      }
+
+      if (__DEV__) {
+        console.log('✅ Sign up successful');
+      }
 
       return {
         success: true,
@@ -340,9 +482,12 @@ class SupabaseAuthService {
         },
       };
     } catch (error: any) {
+      if (__DEV__) {
+        console.error('❌ Sign up exception:', error);
+      }
       return {
         success: false,
-        error: error.message || 'Failed to sign up',
+        error: error.message || 'Failed to sign up. Please check your internet connection.',
       };
     }
   }
@@ -352,30 +497,104 @@ class SupabaseAuthService {
    */
   async signIn(data: SignInRequest): Promise<ApiResponse<AuthResponse>> {
     try {
-      const { data: authData, error } = await supabase.auth.signInWithPassword({
+      if (__DEV__) {
+        console.log('🔐 Attempting sign in for:', data.email);
+      }
+
+      // Add timeout to prevent hanging
+      const signInPromise = supabase.auth.signInWithPassword({
         email: data.email.toLowerCase().trim(),
         password: data.password,
       });
 
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Sign in request timeout. Please check your internet connection.')), 15000)
+      );
+
+      let result;
+      try {
+        result = await Promise.race([signInPromise, timeoutPromise]) as any;
+      } catch (raceError: any) {
+        // Handle network errors from Promise.race
+        if (raceError.message?.includes('timeout') || raceError.message?.includes('Network request failed')) {
+          if (__DEV__) {
+            console.error('❌ Sign in network error:', raceError);
+          }
+          return {
+            success: false,
+            error: 'Network request failed. Please check your internet connection and try again. If using Android emulator, ensure network is configured correctly.',
+          };
+        }
+        throw raceError;
+      }
+
+      const { data: authData, error } = result;
+
       if (error) {
+        if (__DEV__) {
+          console.error('❌ Sign in error:', error);
+        }
+        
+        // Better error messages for common issues
+        let errorMessage = error.message || 'Invalid email or password';
+        if (error.message?.includes('Network request failed') || error.message?.includes('fetch')) {
+          errorMessage = 'Network request failed. Please check your internet connection. If using Android emulator, try: Settings → Network → Reset network settings.';
+        } else if (error.message?.includes('Invalid login credentials')) {
+          errorMessage = 'Invalid email or password. Please check your credentials.';
+        }
+        
         return {
           success: false,
-          error: error.message,
+          error: errorMessage,
         };
       }
 
       if (!authData.user || !authData.session) {
+        if (__DEV__) {
+          console.error('❌ No user or session returned');
+        }
         return {
           success: false,
           error: 'Sign in failed. Please check your credentials.',
         };
       }
 
+      if (__DEV__) {
+        console.log('✅ Supabase auth successful, fetching user profile...');
+      }
+
       // Get or create user profile in public.users table
-      const userProfile = await this.getOrCreateUserProfile(
+      // Add timeout to profile creation as well
+      const profilePromise = this.getOrCreateUserProfile(
         authData.user.id,
         data.email.toLowerCase().trim()
       );
+
+      const profileTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
+      );
+
+      let userProfile;
+      try {
+        userProfile = await Promise.race([profilePromise, profileTimeoutPromise]) as User;
+      } catch (profileError: any) {
+        if (__DEV__) {
+          console.error('❌ Profile fetch error:', profileError);
+        }
+        // Even if profile fetch fails, we can still sign in with basic user data
+        userProfile = {
+          id: authData.user.id,
+          email: authData.user.email || data.email.toLowerCase().trim(),
+          profilePictureUrl: undefined,
+          kycStatus: 'pending' as const,
+          createdAt: new Date(authData.user.created_at),
+          updatedAt: new Date(authData.user.updated_at || authData.user.created_at),
+        };
+      }
+
+      if (__DEV__) {
+        console.log('✅ Sign in successful');
+      }
 
       return {
         success: true,
@@ -385,9 +604,12 @@ class SupabaseAuthService {
         },
       };
     } catch (error: any) {
+      if (__DEV__) {
+        console.error('❌ Sign in exception:', error);
+      }
       return {
         success: false,
-        error: error.message || 'Failed to sign in',
+        error: error.message || 'Failed to sign in. Please check your internet connection.',
       };
     }
   }
@@ -413,6 +635,7 @@ class SupabaseAuthService {
       if (updates.name !== undefined) updateData.name = updates.name;
       if (updates.email !== undefined) updateData.email = updates.email;
       if (updates.kycStatus !== undefined) updateData.kyc_status = updates.kycStatus;
+      if (updates.profilePictureUrl !== undefined) updateData.profile_picture_url = updates.profilePictureUrl;
 
       const { data: updatedUser, error } = await supabase
         .from('users')

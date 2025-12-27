@@ -50,15 +50,30 @@ export default function SignUpScreen({ navigation }: Props) {
 
     setIsLoading(true);
     try {
+      if (__DEV__) {
+        console.log('🚀 Starting sign up process...');
+      }
+
       const response = await authService.signUp({
         email: trimmedEmail,
         password: password,
         name: name.trim() || undefined,
       });
 
+      if (__DEV__) {
+        console.log('📥 Sign up response:', { success: response.success, error: response.error });
+      }
+
       if (response.success && response.data) {
+        if (__DEV__) {
+          console.log('✅ Sign up successful, setting user and token...');
+        }
         await setToken(response.data.token);
         setUser(response.data.user);
+        
+        if (__DEV__) {
+          console.log('✅ Navigation to Onboarding...');
+        }
         Alert.alert('Success', 'Account created successfully!', [
           {
             text: 'OK',
@@ -66,9 +81,15 @@ export default function SignUpScreen({ navigation }: Props) {
           },
         ]);
       } else {
+        if (__DEV__) {
+          console.error('❌ Sign up failed:', response.error);
+        }
         Alert.alert('Sign Up Failed', response.error || 'Failed to create account. Please try again.');
       }
     } catch (error: any) {
+      if (__DEV__) {
+        console.error('❌ Sign up exception:', error);
+      }
       Alert.alert('Error', error.message || 'Failed to sign up. Please try again.');
     } finally {
       setIsLoading(false);

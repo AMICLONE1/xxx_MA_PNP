@@ -20,6 +20,7 @@ import ProfileScreen from '@/screens/profile/ProfileScreen';
 
 // KYC & Meter Screens
 import KYCScreen from '@/screens/kyc/KYCScreen';
+import AadhaarScanScreen from '@/screens/kyc/AadhaarScanScreen';
 import MeterRegistrationScreen from '@/screens/meter/MeterRegistrationScreen';
 
 // Trading Screens
@@ -138,8 +139,18 @@ export const AppNavigator = () => {
           <>
             <RootStack.Screen name="Main" component={MainTabNavigator} />
             <RootStack.Screen
+              name="Onboarding"
+              component={OnboardingScreen}
+              options={{ presentation: 'modal' }}
+            />
+            <RootStack.Screen
               name="KYC"
               component={KYCScreen}
+              options={{ presentation: 'modal' }}
+            />
+            <RootStack.Screen
+              name="AadhaarScan"
+              component={AadhaarScanScreen}
               options={{ presentation: 'modal' }}
             />
             <RootStack.Screen

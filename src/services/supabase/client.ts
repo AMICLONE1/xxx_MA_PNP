@@ -14,18 +14,26 @@ const supabaseAnonKey =
   '';
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    'Missing Supabase credentials. Please set SUPABASE_URL and SUPABASE_ANON_KEY in .env or app.json'
+  console.error(
+    '❌ Missing Supabase credentials. Please set SUPABASE_URL and SUPABASE_ANON_KEY in .env or app.json'
   );
+} else if (__DEV__) {
+  console.log('✅ Supabase configured:', {
+    url: supabaseUrl,
+    hasKey: !!supabaseAnonKey,
+    keyLength: supabaseAnonKey?.length || 0,
+  });
 }
 
 // Create Supabase client with AsyncStorage for auth persistence
+// Added better error handling for Android emulator network issues
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    flowType: 'pkce',
   },
 });
 
@@ -39,13 +47,30 @@ export const getCurrentUser = async () => {
   return user;
 };
 
-// Helper function to get current session
+// Helper function to get current session with timeout
 export const getCurrentSession = async () => {
-  const {
-    data: { session },
-    error,
-  } = await supabase.auth.getSession();
-  if (error) throw error;
-  return session;
+  try {
+    const sessionPromise = supabase.auth.getSession();
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Session fetch timeout')), 10000)
+    );
+
+    const result = await Promise.race([sessionPromise, timeoutPromise]) as any;
+    const { data: { session }, error } = result;
+    
+    if (error) {
+      if (__DEV__) {
+        console.warn('⚠️ Session fetch error:', error.message);
+      }
+      throw error;
+    }
+    return session;
+  } catch (error: any) {
+    if (__DEV__) {
+      console.warn('⚠️ getCurrentSession error:', error.message);
+    }
+    // Return null instead of throwing to allow app to continue
+    return null;
+  }
 };
 

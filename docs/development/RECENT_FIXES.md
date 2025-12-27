@@ -2,6 +2,118 @@
 
 ## ✅ All Issues Fixed
 
+### Latest Updates (December 2024)
+
+#### 1. Aadhaar Card OCR Scanning Feature ✅
+
+**Feature:** Complete OCR-based Aadhaar card scanning with dedicated screen.
+
+**Implementation:**
+- ✅ Created `AadhaarScanScreen.tsx` with full OCR workflow
+- ✅ Image upload using `expo-image-picker` (camera/gallery)
+- ✅ On-device OCR using `@react-native-ml-kit/text-recognition`
+- ✅ Automatic data extraction:
+  - Full Name
+  - Aadhaar Number (12 digits)
+  - Date of Birth
+  - Address
+- ✅ Security features:
+  - Aadhaar number masking (XXXX-XXXX-1234)
+  - Read-only Aadhaar number field
+  - Image file deletion after OCR
+  - No sensitive data logging
+- ✅ User experience:
+  - Loading indicator during OCR processing
+  - Editable form fields for extracted data
+  - Confirmation checkbox requirement
+  - Submit button disabled until confirmed
+  - Green color scheme matching app theme
+- ✅ Integration:
+  - Navigates from KYC Screen
+  - Sets local KYC status to "pending" on submit
+  - No backend calls (Phase 1 implementation)
+
+**Files Created:**
+- `src/screens/kyc/AadhaarScanScreen.tsx`
+
+**Files Modified:**
+- `src/types/index.ts` - Added `AadhaarScan` to navigation types
+- `src/navigation/AppNavigator.tsx` - Added AadhaarScan screen
+- `src/screens/kyc/KYCScreen.tsx` - Navigation to AadhaarScanScreen
+
+---
+
+#### 2. Profile Picture Upload Feature ✅
+
+**Feature:** Profile picture upload and display functionality.
+
+**Implementation:**
+- ✅ Profile picture upload using `expo-image-picker`
+- ✅ Image cropping (1:1 aspect ratio)
+- ✅ Upload to Supabase Storage (`profile-images` bucket)
+- ✅ Profile picture display with fallback icon
+- ✅ Loading indicator during upload
+- ✅ Camera icon overlay for upload action
+- ✅ Updates user profile in Supabase
+- ✅ Updates local auth store
+
+**Files Modified:**
+- `src/screens/profile/ProfileScreen.tsx` - Added upload functionality
+- `src/services/supabase/storageService.ts` - Added `uploadProfileImageFromUri`
+- `src/services/supabase/authService.ts` - Added `profilePictureUrl` support
+- `src/types/index.ts` - Added `profilePictureUrl` to User type
+
+---
+
+#### 3. Profile Name Display Fix ✅
+
+**Feature:** Display actual user name from sign-up instead of email.
+
+**Fix:**
+- ✅ Removed email username fallback
+- ✅ Shows only actual name from sign-up or "User" as fallback
+- ✅ Fixed profile image position and alignment
+
+**Files Modified:**
+- `src/screens/profile/ProfileScreen.tsx` - Updated name display logic
+- `src/services/supabase/authService.ts` - Ensured name is saved during sign-up
+
+---
+
+#### 4. Authentication Improvements ✅
+
+**Fixes:**
+- ✅ Added timeouts to all Supabase authentication calls (15 seconds)
+- ✅ Added timeouts to user profile operations (8 seconds)
+- ✅ Enhanced error messages for network failures
+- ✅ Fixed session restoration timeout (5 seconds)
+- ✅ Improved loading state management
+- ✅ Added debug logging for troubleshooting
+
+**Files Modified:**
+- `src/services/supabase/authService.ts` - Added timeouts and error handling
+- `src/store/authStore.ts` - Improved session restoration
+- `src/services/supabase/client.ts` - Added timeout to session check
+
+---
+
+#### 5. Color Scheme Consistency ✅
+
+**Update:** Standardized all screens to use green color scheme.
+
+**Changes:**
+- ✅ Updated AadhaarScanScreen from blue to green theme
+- ✅ All screens now use consistent green palette:
+  - Primary: `#10b981` (emerald-500)
+  - Dark: `#059669` (emerald-600)
+  - Light: `#ecfdf5` (emerald-50)
+  - Tint: `#d1fae5` (emerald-100)
+
+**Files Modified:**
+- `src/screens/kyc/AadhaarScanScreen.tsx` - Color scheme update
+
+---
+
 ### 1. User Session Persistence ✅
 
 **Problem:** User session was not being stored/restored on device.
@@ -176,11 +288,14 @@ const DEFAULT_LOCATION = {
 ## 🚀 Next Steps
 
 1. **Immediate:**
+   - Test Aadhaar scan feature
+   - Test profile picture upload
    - Test session persistence
    - Test withdraw flow
    - Test default location
 
 2. **Short-term:**
+   - Backend integration for Aadhaar verification
    - Implement Mapbox integration (get token first)
    - Create mock energy meter simulator
    - Connect backend APIs
@@ -189,6 +304,7 @@ const DEFAULT_LOCATION = {
    - Real-time energy data sync
    - Payment gateway integration
    - Advanced analytics
+   - Auto-verification of KYC documents
 
 ---
 
@@ -206,8 +322,11 @@ const DEFAULT_LOCATION = {
 ## 🔗 Related Files
 
 - `IMPLEMENTATION_PLAN.md` - Detailed plan for Mapbox and energy meter simulation
+- `IMPLEMENTATION_STATUS.md` - Complete feature status
 - `src/store/authStore.ts` - Session persistence logic
 - `App.tsx` - Session restoration on startup
 - `src/screens/wallet/WithdrawScreen.tsx` - Withdraw functionality
 - `src/screens/trading/MarketplaceScreen.tsx` - Default location (Pune)
+- `src/screens/kyc/AadhaarScanScreen.tsx` - Aadhaar OCR scanning
+- `src/screens/profile/ProfileScreen.tsx` - Profile picture upload
 
