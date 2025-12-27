@@ -15,7 +15,17 @@
 
 ### Phase 2: KYC & Trust Layer (100% Complete) ✅
 - ✅ KYC Document Scanning with ML Kit OCR
-  - Aadhaar card scanning and extraction
+  - ✅ **Aadhaar card scanning with dedicated screen**
+    - Image upload (camera/gallery) with expo-image-picker
+    - On-device OCR using ML Kit text recognition
+    - Automatic extraction of Full Name, Aadhaar Number, Date of Birth, and Address
+    - Aadhaar number masking (XXXX-XXXX-1234) for security
+    - Read-only Aadhaar number field
+    - Editable form fields for extracted data
+    - User confirmation checkbox requirement
+    - Image file deletion after OCR processing
+    - Local KYC status update to "pending" on submission
+    - Green color scheme matching app theme
   - PAN card scanning and extraction
   - Electricity bill scanning
   - OCR service with pattern matching
@@ -116,13 +126,13 @@
 /src
   /components          ✅ OfflineIndicator
   /screens
-    /auth              ✅ LoginScreen, OTPScreen, OnboardingScreen
-    /kyc               ✅ KYCScreen, DocumentScanScreen, LivenessCheckScreen
+    /auth              ✅ LoginScreen, OTPScreen, OnboardingScreen, SignUpScreen
+    /kyc               ✅ KYCScreen, AadhaarScanScreen, DocumentScanScreen, LivenessCheckScreen
     /meter             ✅ MeterRegistrationScreen, HardwareRequestScreen, MeterStatusScreen
     /trading           ✅ MarketplaceScreen, OrderScreen
     /wallet            ✅ WalletScreen, TopUpScreen
     /home               ✅ HomeScreen (Energy Cockpit), EnergyChartScreen
-    /profile            ✅ ProfileScreen, TradingBotScreen
+    /profile            ✅ ProfileScreen (with profile picture upload), TradingBotScreen
   /navigation          ✅ AppNavigator
   /store               ✅ All Zustand stores
   /services

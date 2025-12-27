@@ -119,11 +119,15 @@ This project uses:
 - [x] State management (Zustand)
 - [x] Local database setup (WatermelonDB)
 
-### Phase 2: KYC & Trust Layer (In Progress)
-- [ ] Document scanning (Aadhaar, PAN, Electricity Bill)
-- [ ] Liveness check
-- [ ] Business verification
-- [ ] KYC status tracking
+### Phase 2: KYC & Trust Layer ✅
+- [x] Document scanning (Aadhaar, PAN, Electricity Bill)
+  - [x] OCR-based Aadhaar card scanning with ML Kit
+  - [x] Automatic data extraction (Name, Aadhaar Number, DOB, Address)
+  - [x] Aadhaar number masking and security
+  - [x] User confirmation flow
+- [x] Liveness check
+- [x] Business verification
+- [x] KYC status tracking
 
 ### Phase 3: Meter-First Onboarding (Planned)
 - [ ] Meter registration flow
