@@ -1,11 +1,14 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Image, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/types';
 import { useAuthStore, useMeterStore } from '@/store';
+import { supabaseStorageService } from '@/services/supabase/storageService';
+import { supabaseAuthService } from '@/services/supabase/authService';
 
 type ProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Profile'>;
 
@@ -14,8 +17,9 @@ interface Props {
 }
 
 export default function ProfileScreen({ navigation }: Props) {
-  const { logout, user } = useAuthStore();
+  const { logout, user, setUser } = useAuthStore();
   const { currentMeter, removeMeter } = useMeterStore();
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -53,6 +57,112 @@ export default function ProfileScreen({ navigation }: Props) {
         },
       ]
     );
+  };
+
+  const handlePickImage = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'User not found');
+      return;
+    }
+
+    try {
+      // Request permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant camera roll permissions to upload profile picture.');
+        return;
+      }
+
+      // Show image picker options
+      Alert.alert(
+        'Select Profile Picture',
+        'Choose an option',
+        [
+          {
+            text: 'Camera',
+            onPress: async () => {
+              const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
+              if (cameraStatus.status !== 'granted') {
+                Alert.alert('Permission Required', 'Please grant camera permissions.');
+                return;
+              }
+              const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+
+              if (!result.canceled && result.assets[0]) {
+                await uploadProfileImage(result.assets[0].uri);
+              }
+            },
+          },
+          {
+            text: 'Photo Library',
+            onPress: async () => {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+
+              if (!result.canceled && result.assets[0]) {
+                await uploadProfileImage(result.assets[0].uri);
+              }
+            },
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+        ]
+      );
+    } catch (error: any) {
+      if (__DEV__) {
+        console.error('Error picking image:', error);
+      }
+      Alert.alert('Error', 'Failed to open image picker. Please try again.');
+    }
+  };
+
+  const uploadProfileImage = async (imageUri: string) => {
+    if (!user?.id) return;
+
+    setIsUploadingImage(true);
+    try {
+      if (__DEV__) {
+        console.log('📤 Uploading profile image...');
+      }
+
+      // Upload image to Supabase storage
+      const imageUrl = await supabaseStorageService.uploadProfileImageFromUri(user.id, imageUri);
+
+      if (__DEV__) {
+        console.log('✅ Image uploaded:', imageUrl);
+      }
+
+      // Update user profile with new image URL
+      const response = await supabaseAuthService.updateProfile({
+        profilePictureUrl: imageUrl,
+      });
+
+      if (response.success && response.data) {
+        // Update user in store
+        setUser(response.data);
+        Alert.alert('Success', 'Profile picture updated successfully!');
+      } else {
+        throw new Error(response.error || 'Failed to update profile');
+      }
+    } catch (error: any) {
+      if (__DEV__) {
+        console.error('❌ Error uploading profile image:', error);
+      }
+      Alert.alert('Error', error.message || 'Failed to upload profile picture. Please try again.');
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   const menuItems = [
@@ -99,11 +209,37 @@ export default function ProfileScreen({ navigation }: Props) {
           {/* User Info Card */}
           {user && (
             <View style={styles.userCard}>
-              <View style={styles.userAvatar}>
-                <MaterialCommunityIcons name="account" size={48} color="#10b981" />
-              </View>
+              <TouchableOpacity
+                style={styles.userAvatarContainer}
+                onPress={handlePickImage}
+                disabled={isUploadingImage}
+                activeOpacity={0.7}
+              >
+                {user.profilePictureUrl ? (
+                  <Image
+                    source={{ uri: user.profilePictureUrl }}
+                    style={styles.userAvatarImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.userAvatar}>
+                    <MaterialCommunityIcons name="account" size={48} color="#10b981" />
+                  </View>
+                )}
+                {isUploadingImage ? (
+                  <View style={styles.uploadingOverlay}>
+                    <ActivityIndicator size="small" color="#10b981" />
+                  </View>
+                ) : (
+                  <View style={styles.cameraIconOverlay}>
+                    <Ionicons name="camera" size={20} color="#ffffff" />
+                  </View>
+                )}
+              </TouchableOpacity>
               <View style={styles.userInfo}>
-                <Text style={styles.userName}>{user.name || 'User'}</Text>
+                <Text style={styles.userName} numberOfLines={1}>
+                  {user.name?.trim() || 'User'}
+                </Text>
                 <View style={styles.userDetailRow}>
                   <Ionicons name="mail" size={16} color="#6b7280" />
                   <Text style={styles.userDetail}>{user.email}</Text>
@@ -231,17 +367,58 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
-  userAvatar: {
+  userAvatarContainer: {
     width: 80,
     height: 80,
+    borderRadius: 40,
+    marginRight: 16,
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#ecfdf5',
+    alignSelf: 'flex-start',
+  },
+  userAvatar: {
+    width: '100%',
+    height: '100%',
     borderRadius: 40,
     backgroundColor: '#ecfdf5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+  },
+  userAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 40,
+  },
+  cameraIconOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#10b981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    zIndex: 1,
+  },
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
   },
   userInfo: {
     flex: 1,
+    justifyContent: 'center',
   },
   userName: {
     fontSize: 20,

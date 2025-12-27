@@ -64,7 +64,39 @@ class SupabaseStorageService {
   }
 
   /**
-   * Upload profile image
+   * Upload profile image from React Native
+   * Accepts image URI from expo-image-picker
+   */
+  async uploadProfileImageFromUri(userId: string, imageUri: string): Promise<string> {
+    try {
+      // Fetch the image as blob
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+
+      // Generate unique filename
+      const fileName = `profile_${Date.now()}.${this.getFileExtension(blob)}`;
+      const path = `${userId}/${fileName}`;
+
+      // Upload to Supabase storage
+      const { url } = await this.uploadFile('profile-images', path, blob, {
+        contentType: blob.type || 'image/jpeg',
+        upsert: false, // Don't upsert, create new file each time
+      });
+
+      // Delete old profile image if exists (optional cleanup)
+      // This is handled by Supabase storage policies or manual cleanup
+
+      return url;
+    } catch (error: any) {
+      if (__DEV__) {
+        console.error('❌ Profile image upload error:', error);
+      }
+      throw new Error(`Failed to upload profile image: ${error.message}`);
+    }
+  }
+
+  /**
+   * Upload profile image (legacy method for web/Blob)
    */
   async uploadProfileImage(userId: string, file: Blob | File): Promise<string> {
     const fileName = `${userId}/profile_${Date.now()}.${this.getFileExtension(file)}`;
@@ -72,7 +104,7 @@ class SupabaseStorageService {
 
     const { url } = await this.uploadFile('profile-images', path, file, {
       contentType: file.type,
-      upsert: true, // Replace existing profile image
+      upsert: false,
     });
 
     return url;

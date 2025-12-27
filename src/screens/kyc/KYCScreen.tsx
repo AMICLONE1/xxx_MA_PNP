@@ -235,7 +235,7 @@ export default function KYCScreen({ navigation }: Props) {
 
                 <TouchableOpacity
                   style={styles.documentButton}
-                  onPress={() => handleDocumentSelect('aadhaar')}
+                  onPress={() => navigation.navigate('AadhaarScan')}
                   activeOpacity={0.7}
                 >
                   <LinearGradient

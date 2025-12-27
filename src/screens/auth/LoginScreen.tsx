@@ -42,19 +42,41 @@ export default function LoginScreen({ navigation }: Props) {
 
     setIsLoading(true);
     try {
+      if (__DEV__) {
+        console.log('🚀 Starting sign in process...');
+      }
+
       const response = await authService.signIn({
         email: trimmedEmail,
         password: password,
       });
 
+      if (__DEV__) {
+        console.log('📥 Sign in response:', { success: response.success, error: response.error });
+      }
+
       if (response.success && response.data) {
+        if (__DEV__) {
+          console.log('✅ Sign in successful, setting user and token...');
+        }
         await setToken(response.data.token);
         setUser(response.data.user);
-        navigation.replace('Onboarding');
+        
+        // Navigation will happen automatically via AppNavigator when isAuthenticated becomes true
+        // No need to manually navigate - AppNavigator will show Main screen
+        if (__DEV__) {
+          console.log('✅ User authenticated, AppNavigator will show Main screen automatically');
+        }
       } else {
+        if (__DEV__) {
+          console.error('❌ Sign in failed:', response.error);
+        }
         Alert.alert('Sign In Failed', response.error || 'Invalid email or password');
       }
     } catch (error: any) {
+      if (__DEV__) {
+        console.error('❌ Sign in exception:', error);
+      }
       Alert.alert('Error', error.message || 'Failed to sign in. Please try again.');
     } finally {
       setIsLoading(false);

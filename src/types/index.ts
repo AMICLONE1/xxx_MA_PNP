@@ -4,6 +4,7 @@ export interface User {
   email: string; // Primary identifier for authentication
   phoneNumber?: string; // Optional, can be added later
   name?: string;
+  profilePictureUrl?: string; // URL to profile picture in Supabase storage
   kycStatus: KYCStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -144,6 +145,7 @@ export type RootStackParamList = {
   OTP: { email: string };
   Onboarding: undefined;
   KYC: undefined;
+  AadhaarScan: undefined;
   MeterRegistration: { isHardwareRequest?: boolean } | undefined;
   MeterStatus: undefined;
   Home: undefined;
